@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+
+    // User Rules
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['displayName', 'photoURL', 'lastSeen']) &&
+               data.keys().size() <= 8 &&
+               data.displayName is string && data.displayName.size() <= 100 &&
+               data.photoURL is string && data.photoURL.size() <= 500 &&
+               (data.phoneNumber == null || (data.phoneNumber is string && data.phoneNumber.size() <= 20)) &&
+               (data.status == null || (data.status is string && data.status.size() <= 500)) &&
+               data.lastSeen == request.time;
+      }
+      
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidUser(incoming());
+    }
+
+    // Chat Rules
+    match /chats/{chatId} {
+      function canAccessChat() {
+        return isSignedIn() && (
+          (resource != null && request.auth.uid in resource.data.participants) ||
+          (request.resource != null && request.auth.uid in request.resource.data.participants)
+        );
+      }
+      
+      function isValidChat(data) {
+        return data.participants is list && 
+               data.participants.size() >= 2 &&
+               data.participants.size() <= 10 &&
+               data.participants[0] is string &&
+               (data.updatedAt == request.time || !data.diff(resource.data).affectedKeys().hasAny(['updatedAt']));
+      }
+
+      allow get: if canAccessChat();
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && isValidChat(incoming()) && request.auth.uid in incoming().participants;
+      allow update: if canAccessChat() && (
+        incoming().diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'updatedAt']) ||
+        incoming().diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'updatedAt', 'participants']) // Allow bot to be added if needed, though usually fixed
+      );
+      
+      // Message Rules
+      match /messages/{messageId} {
+        function getChatData() {
+          return get(/databases/$(database)/documents/chats/$(chatId)).data;
+        }
+        
+        function isChatParticipant() {
+          return isSignedIn() && request.auth.uid in getChatData().participants;
+        }
+
+        function isValidMessage(data) {
+          return data.keys().hasAll(['text', 'senderId', 'timestamp']) &&
+                 data.text is string && data.text.size() <= 10000 &&
+                 (data.senderId == request.auth.uid || data.senderId == 'lumina-ai-bot' || data.senderId == 'system') &&
+                 (data.timestamp == request.time || data.timestamp == null);
+        }
+        
+        allow read: if isChatParticipant();
+        allow create: if isChatParticipant() && isValidMessage(incoming());
+      }
+    }
+  }
+}

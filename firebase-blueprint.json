@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "App user profile.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "status": { "type": "string" },
+        "lastSeen": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "A conversation between users.",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "description": "UIDs of users in the chat" },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["private", "group"] }
+      }
+    },
+    "Message": {
+      "title": "Message",
+      "description": "An individual message in a chat.",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "senderId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "aiSuggested": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles root collection."
+    },
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Conversations root collection."
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages within a specific chat."
+    }
+  }
+}
