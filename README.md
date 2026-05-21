@@ -1,4 +1,4 @@
-![image alt](
+![image alt](https://github.com/RakshithMR123/RAKSHchat/blob/05a1501457e8e95016c275cfe6c015b19f35a4c4/Screenshot%2011.png)
 
 # Run and deploy your AI Studio app
 
